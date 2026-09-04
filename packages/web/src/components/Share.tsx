@@ -38,6 +38,17 @@ function getStatusText(status: [Status, string?], messages: Record<string, strin
   }
 }
 
+function isVisiblePart(part: MessageV2.Part, index: number): boolean {
+  if (part.type === "step-start" && index > 0) return false
+  if (part.type === "snapshot") return false
+  if (part.type === "patch") return false
+  if (part.type === "step-finish") return false
+  if (part.type === "text" && part.synthetic === true) return false
+  if (part.type === "text" && !part.text) return false
+  if (part.type === "tool" && (part.state.status === "pending" || part.state.status === "running")) return false
+  return true
+}
+
 export default function Share(props: {
   id: string
   api: string
@@ -350,19 +361,7 @@ export default function Share(props: {
                 <SuspenseList revealOrder="forwards">
                   <For each={data().messages}>
                     {(msg, msgIndex) => {
-                      const filteredParts = createMemo(() =>
-                        msg.parts.filter((x, index) => {
-                          if (x.type === "step-start" && index > 0) return false
-                          if (x.type === "snapshot") return false
-                          if (x.type === "patch") return false
-                          if (x.type === "step-finish") return false
-                          if (x.type === "text" && x.synthetic === true) return false
-                          if (x.type === "text" && !x.text) return false
-                          if (x.type === "tool" && (x.state.status === "pending" || x.state.status === "running"))
-                            return false
-                          return true
-                        }),
-                      )
+                      const filteredParts = createMemo(() => msg.parts.filter(isVisiblePart))
 
                       return (
                         <Suspense>
