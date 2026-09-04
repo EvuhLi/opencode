@@ -49,6 +49,48 @@ function isVisiblePart(part: MessageV2.Part, index: number): boolean {
   return true
 }
 
+function summarizeSession(info: Session.Info | undefined, msgs: MessageWithParts[]) {
+  const result = {
+    rootDir: undefined as string | undefined,
+    created: undefined as number | undefined,
+    completed: undefined as number | undefined,
+    messages: [] as MessageWithParts[],
+    models: {} as Record<string, string[]>,
+    cost: 0,
+    tokens: {
+      input: 0,
+      output: 0,
+      reasoning: 0,
+    },
+  }
+
+  if (!info) return result
+
+  result.created = info.time.created
+
+  for (const msg of msgs) {
+    result.messages.push(msg)
+
+    if (msg.role === "assistant") {
+      result.cost += msg.cost
+      result.tokens.input += msg.tokens.input
+      result.tokens.output += msg.tokens.output
+      result.tokens.reasoning += msg.tokens.reasoning
+
+      result.models[`${msg.providerID} ${msg.modelID}`] = [msg.providerID, msg.modelID]
+
+      if (msg.path.root) {
+        result.rootDir = msg.path.root
+      }
+
+      if (msg.time.completed) {
+        result.completed = msg.time.completed
+      }
+    }
+  }
+  return result
+}
+
 export default function Share(props: {
   id: string
   api: string
@@ -263,50 +305,7 @@ export default function Share(props: {
     }
   })
 
-  const data = createMemo(() => {
-    const result = {
-      rootDir: undefined as string | undefined,
-      created: undefined as number | undefined,
-      completed: undefined as number | undefined,
-      messages: [] as MessageWithParts[],
-      models: {} as Record<string, string[]>,
-      cost: 0,
-      tokens: {
-        input: 0,
-        output: 0,
-        reasoning: 0,
-      },
-    }
-
-    if (!store.info) return result
-
-    result.created = store.info.time.created
-
-    const msgs = messages()
-    for (let i = 0; i < msgs.length; i++) {
-      const msg = msgs[i]
-
-      result.messages.push(msg)
-
-      if (msg.role === "assistant") {
-        result.cost += msg.cost
-        result.tokens.input += msg.tokens.input
-        result.tokens.output += msg.tokens.output
-        result.tokens.reasoning += msg.tokens.reasoning
-
-        result.models[`${msg.providerID} ${msg.modelID}`] = [msg.providerID, msg.modelID]
-
-        if (msg.path.root) {
-          result.rootDir = msg.path.root
-        }
-
-        if (msg.time.completed) {
-          result.completed = msg.time.completed
-        }
-      }
-    }
-    return result
-  })
+  const data = createMemo(() => summarizeSession(store.info, messages()))
 
   return (
     <Show when={store.info}>
