@@ -10,7 +10,7 @@ import type { Message } from "opencode/session/message"
 import type { Session } from "opencode/session/index"
 import { Part, ProviderIcon } from "./share/part"
 
-type MessageWithParts = MessageV2.Info & { parts: MessageV2.Part[] }
+export type MessageWithParts = MessageV2.Info & { parts: MessageV2.Part[] }
 
 type Status = "disconnected" | "connecting" | "connected" | "error" | "reconnecting"
 
@@ -38,7 +38,7 @@ function getStatusText(status: [Status, string?], messages: Record<string, strin
   }
 }
 
-function isVisiblePart(part: MessageV2.Part, index: number): boolean {
+export function isVisiblePart(part: MessageV2.Part, index: number): boolean {
   if (part.type === "step-start" && index > 0) return false
   if (part.type === "snapshot") return false
   if (part.type === "patch") return false
@@ -49,7 +49,7 @@ function isVisiblePart(part: MessageV2.Part, index: number): boolean {
   return true
 }
 
-function summarizeSession(info: Session.Info | undefined, msgs: MessageWithParts[]) {
+export function summarizeSession(info: Session.Info | undefined, msgs: MessageWithParts[]) {
   const result = {
     rootDir: undefined as string | undefined,
     created: undefined as number | undefined,
