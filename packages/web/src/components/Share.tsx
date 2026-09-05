@@ -91,6 +91,19 @@ export function summarizeSession(info: Session.Info | undefined, msgs: MessageWi
   return result
 }
 
+// Only show when scrolling down, scrolled enough, and not near bottom.
+export function shouldShowScrollButton(params: { currentScrollY: number; lastScrollY: number; isNearBottom: boolean }) {
+  const isScrollingDown = params.currentScrollY > params.lastScrollY
+  const scrolled = params.currentScrollY > 200 // Show after scrolling 200px
+  return isScrollingDown && scrolled && !params.isNearBottom
+}
+
+// Runs `dispose(value)` only if `value` is set - shared by every "clear this
+// timeout/observer/element if it exists" cleanup spot in useScrollButton.
+export function disposeIfSet<T>(value: T | undefined, dispose: (value: T) => void) {
+  if (value) dispose(value)
+}
+
 // Encapsulates the floating "scroll to bottom" button: visibility on scroll-down,
 // hover-to-persist, auto-hide timers, and the near-bottom IntersectionObserver.
 function useScrollButton() {
@@ -103,35 +116,28 @@ function useScrollButton() {
   const [isButtonHovered, setIsButtonHovered] = createSignal(false)
   const [isNearBottom, setIsNearBottom] = createSignal(false)
 
+  function scheduleHide(ms: number) {
+    return window.setTimeout(() => {
+      if (!isButtonHovered()) setShowScrollButton(false)
+    }, ms)
+  }
+
   function checkScrollNeed() {
     const currentScrollY = window.scrollY
-    const isScrollingDown = currentScrollY > lastScrollY
-    const scrolled = currentScrollY > 200 // Show after scrolling 200px
-
-    // Only show when scrolling down, scrolled enough, and not near bottom
-    const shouldShow = isScrollingDown && scrolled && !isNearBottom()
+    const shouldShow = shouldShowScrollButton({ currentScrollY, lastScrollY, isNearBottom: isNearBottom() })
 
     // Update last scroll position
     lastScrollY = currentScrollY
 
     if (shouldShow) {
       setShowScrollButton(true)
-      // Clear existing timeout
-      if (scrollTimeout) {
-        clearTimeout(scrollTimeout)
-      }
+      disposeIfSet(scrollTimeout, clearTimeout)
       // Hide button after 3 seconds of no scrolling (unless hovered)
-      scrollTimeout = window.setTimeout(() => {
-        if (!isButtonHovered()) {
-          setShowScrollButton(false)
-        }
-      }, 1500)
+      scrollTimeout = scheduleHide(1500)
     } else if (!isButtonHovered()) {
       // Only hide if not hovered (to prevent disappearing while user is about to click)
       setShowScrollButton(false)
-      if (scrollTimeout) {
-        clearTimeout(scrollTimeout)
-      }
+      disposeIfSet(scrollTimeout, clearTimeout)
     }
   }
 
@@ -167,16 +173,9 @@ function useScrollButton() {
     window.removeEventListener("resize", checkScrollNeed)
 
     // Clean up observer and sentinel
-    if (scrollObserver) {
-      scrollObserver.disconnect()
-    }
-    if (scrollSentinel) {
-      document.body.removeChild(scrollSentinel)
-    }
-
-    if (scrollTimeout) {
-      clearTimeout(scrollTimeout)
-    }
+    disposeIfSet(scrollObserver, (observer) => observer.disconnect())
+    disposeIfSet(scrollSentinel, (sentinel) => document.body.removeChild(sentinel))
+    disposeIfSet(scrollTimeout, clearTimeout)
   })
 
   return {
@@ -188,18 +187,12 @@ function useScrollButton() {
     },
     onMouseEnter() {
       setIsButtonHovered(true)
-      if (scrollTimeout) {
-        clearTimeout(scrollTimeout)
-      }
+      disposeIfSet(scrollTimeout, clearTimeout)
     },
     onMouseLeave() {
       setIsButtonHovered(false)
       if (showScrollButton()) {
-        scrollTimeout = window.setTimeout(() => {
-          if (!isButtonHovered()) {
-            setShowScrollButton(false)
-          }
-        }, 3000)
+        scrollTimeout = scheduleHide(3000)
       }
     },
   }

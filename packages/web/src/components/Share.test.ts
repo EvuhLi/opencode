@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test"
-import { isVisiblePart, summarizeSession, type MessageWithParts } from "./Share"
+import { isVisiblePart, summarizeSession, shouldShowScrollButton, disposeIfSet, type MessageWithParts } from "./Share"
 import type { MessageV2 } from "opencode/session/message-v2"
 import type { Session } from "opencode/session/index"
 
@@ -319,5 +319,53 @@ describe("summarizeSession", () => {
       "anthropic claude-sonnet-5": ["anthropic", "claude-sonnet-5"],
       "openai gpt-5": ["openai", "gpt-5"],
     })
+  })
+})
+
+// --- shouldShowScrollButton -------------------------------------------------
+
+describe("shouldShowScrollButton", () => {
+  test("shows when scrolling down past the threshold and not near bottom", () => {
+    expect(shouldShowScrollButton({ currentScrollY: 300, lastScrollY: 100, isNearBottom: false })).toBe(true)
+  })
+
+  test("stays hidden when scrolling up, even past the threshold", () => {
+    expect(shouldShowScrollButton({ currentScrollY: 300, lastScrollY: 400, isNearBottom: false })).toBe(false)
+  })
+
+  test("stays hidden when scrolling down but under the 200px threshold", () => {
+    expect(shouldShowScrollButton({ currentScrollY: 150, lastScrollY: 50, isNearBottom: false })).toBe(false)
+  })
+
+  test("stays hidden near the bottom even while scrolling down past the threshold", () => {
+    expect(shouldShowScrollButton({ currentScrollY: 300, lastScrollY: 100, isNearBottom: true })).toBe(false)
+  })
+
+  test("treats an unchanged scroll position as not scrolling down", () => {
+    expect(shouldShowScrollButton({ currentScrollY: 300, lastScrollY: 300, isNearBottom: false })).toBe(false)
+  })
+})
+
+// --- disposeIfSet ------------------------------------------------------------
+
+describe("disposeIfSet", () => {
+  test("calls dispose with the value when it is set", () => {
+    const seen: number[] = []
+    disposeIfSet(42, (value) => seen.push(value))
+    expect(seen).toEqual([42])
+  })
+
+  test("does not call dispose when the value is undefined", () => {
+    let called = false
+    disposeIfSet(undefined, () => (called = true))
+    expect(called).toBe(false)
+  })
+
+  test("does not call dispose for falsy-but-meaningful values like 0", () => {
+    // Matches the source's `if (scrollTimeout)` checks, which also treat a
+    // timer id of 0 as "not set" - documenting that rather than changing it.
+    let called = false
+    disposeIfSet(0, () => (called = true))
+    expect(called).toBe(false)
   })
 })
